@@ -1,0 +1,2 @@
+alter table public.lead_schedule_tracking drop constraint lead_schedule_tracking_status_check;
+alter table public.lead_schedule_tracking add constraint lead_schedule_tracking_status_check check (status = any (array['Pending','Scheduled','Not Scheduled','Forward Retry','Forwarded']));
