@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { validateLeadFields, normalizeName, normalizeEmail, type LeadFieldErrors } from "@/lib/leadValidation";
 
 import { Button } from "@/components/ui/button";
@@ -47,7 +46,7 @@ const BULLETS = [
   "Used by 1,000+ professionals who have navigated this process successfully",
 ];
 
-const DEFAULT_WEBHOOK = "https://hooks.zapier.com/hooks/catch/1556442/433fhd7/";
+const TALENT_VISA_WEBHOOK = "https://hooks.zapier.com/hooks/catch/24718631/4565mlj/";
 
 const TalentVisaChecklist = () => {
   const navigate = useNavigate();
@@ -87,25 +86,17 @@ const TalentVisaChecklist = () => {
       source: window.location.origin,
     };
 
-    // Validated + forwarded server-side so the rules can't be bypassed.
-    const { data, error } = await supabase.functions.invoke("validate-lead", {
-      body: { webhookUrl: DEFAULT_WEBHOOK, payload },
-    });
-
-    const serverErrors = (data as { errors?: LeadFieldErrors } | null)?.errors;
-    if (serverErrors && Object.keys(serverErrors).length > 0) {
-      setErrors(serverErrors);
-      setSubmitting(false);
-      toast({
-        title: "Please check your details",
-        description: Object.values(serverErrors)[0],
-        variant: "destructive",
-      });
-      return;
-    }
-    const result = data as { ok?: boolean; forwarded?: boolean } | null;
-    if (error || !result?.ok || !result.forwarded) {
-      console.error("Lead submission error:", error ?? result);
+    // Post the lead straight to the Talent-Visa Zapier Catch Hook (account
+    // 24718631) -> "Taghavi - Talent Visa Checklist LP" Google Sheet. Sent
+    // form-encoded to avoid a CORS preflight that Zapier's Catch Hook rejects.
+    // NOTE: the Zap must be published (Zapier Pro) before rows are written.
+    const body = new URLSearchParams();
+    Object.entries(payload).forEach(([key, value]) => body.append(key, String(value ?? "")));
+    try {
+      const res = await fetch(TALENT_VISA_WEBHOOK, { method: "POST", body });
+      if (!res.ok) throw new Error(`Zapier responded ${res.status}`);
+    } catch (err) {
+      console.error("Lead submission error:", err);
       setSubmitting(false);
       toast({
         title: "Submission failed",
