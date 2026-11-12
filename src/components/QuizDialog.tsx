@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { validateLeadFields, normalizeName, normalizeEmail, type LeadFieldErrors } from "@/lib/leadValidation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -153,23 +152,25 @@ export const QuizDialog = ({ open, onOpenChange }: QuizDialogProps) => {
       source: window.location.origin,
       formType: "Family Based Quiz",
     };
-    // Server-side validation + forwarding (client validation can be bypassed)
-    const body = {
-      webhookUrl: "https://hooks.zapier.com/hooks/catch/1556442/4oyfg6v/",
-      payload,
-    };
-    let { data, error } = await supabase.functions.invoke("validate-lead", { body });
-    if (error) {
-      // One automatic retry for temporary network hiccups
-      ({ data, error } = await supabase.functions.invoke("validate-lead", { body }));
-    }
-    const result = data as { ok?: boolean; forwarded?: boolean; errors?: LeadFieldErrors } | null;
-    if (error || !result?.ok || !result.forwarded) {
-      console.error("Lead submission error:", error ?? result);
+    // Post the lead straight to the Zapier Catch Hook (account 24718631),
+    // which writes a row into the "Family Immigration Checklist" Google Sheet.
+    // NOTE: the Zap must be published (requires Zapier Pro) for rows to be
+    // written; while it is off, Zapier accepts the request but drops the data.
+    const ZAPIER_WEBHOOK_URL = "https://hooks.zapier.com/hooks/catch/24718631/456697n/";
+    // Send form-encoded: a CORS "simple" request, so the browser skips the
+    // preflight OPTIONS that Zapier's Catch Hook rejects. Zapier still parses
+    // each field by name, matching the Zap's Google Sheets column mapping.
+    const form = new URLSearchParams();
+    Object.entries(payload).forEach(([key, value]) => form.append(key, String(value ?? "")));
+    try {
+      const res = await fetch(ZAPIER_WEBHOOK_URL, { method: "POST", body: form });
+      if (!res.ok) throw new Error(`Zapier responded ${res.status}`);
+      return true;
+    } catch (err) {
+      console.error("Lead submission error:", err);
       setSubmissionError("We couldn't submit your information. Please try again.");
       return false;
     }
-    return true;
   };
 
   const handleNext = async () => {
