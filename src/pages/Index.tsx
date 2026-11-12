@@ -26,6 +26,19 @@ const Index = () => {
     }
   }, [location, navigate]);
 
+  // This landing page is served at both "/" and "/family-based-quiz". Declare a
+  // single canonical URL (the site root) so search engines don't treat the two
+  // paths as duplicate content. Scoped to this page and removed on unmount.
+  useEffect(() => {
+    const link = document.createElement("link");
+    link.rel = "canonical";
+    link.href = `${window.location.origin}/`;
+    document.head.appendChild(link);
+    return () => {
+      document.head.removeChild(link);
+    };
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
