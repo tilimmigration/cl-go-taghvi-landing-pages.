@@ -43,6 +43,10 @@ const EMPTY: CaseForm = {
 const VISA_STATUS = ["F-1/OPT", "L-1", "B-1/B-2", "TN", "No current visa", "Other"];
 const VISA_INTEREST = ["O-1", "EB-1A", "EB-2 NIW", "L-1", "E-2", "TN", "Not sure"];
 
+// Case-info submissions post here -> "Case Information Sheet" tab of the Talent
+// Visa Checklist LP spreadsheet (Zapier Zap: "Talent Visa Case Info to Sheet").
+const CASE_INFO_WEBHOOK = "https://hooks.zapier.com/hooks/catch/24718631/456rqpo/";
+
 // Same booking widget used on https://tilimmigration.com/schedule-a-case-evaluation
 const BOOKING_EMBED_URL = "https://calendly.com/taghavi-screening/immigration-screening-phone";
 const CALENDLY_WIDGET_SRC = "https://assets.calendly.com/assets/external/widget.js";
@@ -154,30 +158,15 @@ const TalentVisaSubmitCaseInfo = () => {
       source: window.location.origin,
     };
 
+    // Post the case info straight to the Zapier Catch Hook (account 24718631),
+    // which writes a row into the "Case Information Sheet" tab. Sent form-encoded
+    // to avoid a CORS preflight that Zapier's Catch Hook rejects.
+    // NOTE: the Zap must be published (Zapier Pro) before rows are written.
+    const body = new URLSearchParams();
+    Object.entries(payload).forEach(([key, value]) => body.append(key, String(value ?? "")));
     try {
-      // Never leave the visitor stuck if the lead service is slow to respond.
-      const response = await Promise.race([
-        supabase.functions.invoke("validate-lead", {
-          body: {
-            webhookUrl: "https://hooks.zapier.com/hooks/catch/1556442/42k5yk8/",
-            payload,
-          },
-        }),
-        new Promise<never>((_, reject) =>
-          window.setTimeout(() => reject(new Error("Lead submission timed out")), 10000),
-        ),
-      ]);
-      const result = response.data as { errors?: LeadFieldErrors; trackingId?: string } | null;
-      const serverErrors = result?.errors;
-      if (serverErrors && Object.keys(serverErrors).length > 0) {
-        const mapped: LeadFieldErrors = {};
-        if (serverErrors.fullName) mapped.fullName = serverErrors.fullName;
-        if (serverErrors.email) mapped.email = serverErrors.email;
-        setErrors(mapped);
-        return;
-      }
-      if (response.error) console.error("Case info submission error:", response.error);
-      if (!response.error) trackingIdRef.current = result?.trackingId ?? null;
+      const res = await fetch(CASE_INFO_WEBHOOK, { method: "POST", body });
+      if (!res.ok) throw new Error(`Zapier responded ${res.status}`);
     } catch (error) {
       console.error("Case info submission error:", error);
     } finally {
