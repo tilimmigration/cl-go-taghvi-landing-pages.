@@ -3,8 +3,23 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { brokeredPreviewStorage } from './previewAuthStorage';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+// These come from VITE_* build-time env vars. When they are missing (e.g. the
+// hosting environment has no Supabase env configured) we fall back to inert
+// placeholders so the client can still be constructed and the app renders,
+// instead of createClient() throwing at module load and white-screening the
+// entire site. The public landing pages don't use Supabase (lead forms post
+// directly to Zapier); Supabase-backed features (admin dashboard, booking
+// sync) still require the real values to be set in the hosting env settings.
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://placeholder.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "placeholder-key";
+
+if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) {
+  console.warn(
+    "[supabase] VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY are not set. " +
+      "Supabase features (admin, booking sync) are disabled until these are " +
+      "configured in the hosting environment.",
+  );
+}
 
 
 function isNewSupabaseApiKey(value: string): boolean {
